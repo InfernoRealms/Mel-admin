@@ -12,16 +12,16 @@
         input { background: #000 !important; border: 1px solid #333 !important; color: white; padding: 10px; border-radius: 10px; width: 100%; margin-top: 5px; outline: none; }
         .btn { background: #ec4899; color: white; font-weight: 900; padding: 12px; border-radius: 10px; width: 100%; margin-top: 15px; cursor: pointer; text-transform: uppercase; font-size: 11px; text-align: center; }
         .hidden { display: none !important; }
-        #loading-overlay { position: fixed; inset: 0; background: #0a0a0a; z-index: 100; display: flex; align-items: center; justify-content: center; font-weight: 900; letter-spacing: 4px; }
+        .chat-img { max-width: 100%; border-radius: 8px; margin-top: 5px; }
     </style>
 </head>
 <body>
-    <div id="loading-overlay">VERIFYING...</div>
+    <div id="loading-overlay" class="fixed inset-0 bg-black z-50 flex items-center justify-center font-bold">LOADING...</div>
 
     <div id="login-screen" class="hidden h-screen flex items-center justify-center">
         <div class="glass text-center w-80">
-            <h1 class="text-xl font-black mb-6 uppercase text-pink-500">Mimi Admin</h1>
-            <button onclick="adminLogin()" class="btn">Login with Google</button>
+            <h1 class="text-xl font-black mb-6 uppercase text-pink-500">Admin</h1>
+            <button onclick="adminLogin()" class="btn">Login</button>
         </div>
     </div>
 
@@ -31,11 +31,23 @@
             <div onclick="showTab('chat')" id="t-chat" class="tab">Chats</div>
             <div onclick="showTab('staff')" id="t-staff" class="tab">Access</div>
         </div>
+
         <div id="p-store" class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="glass"><label>Discord</label><input type="text" id="aDisc"><label>PayPal Name</label><input type="text" id="aPay"><button onclick="saveG()" class="btn">Save</button></div>
-            <div class="glass"><input type="text" id="sName" placeholder="Name"><input type="text" id="sPrice" placeholder="Price"><button onclick="addS()" class="btn bg-zinc-800">Add</button><div id="sList" class="mt-4 space-y-2 text-xs"></div><button onclick="saveS()" class="btn">Update Site</button></div>
+            <div class="glass"><input type="text" id="sName" placeholder="Name"><input type="text" id="sPrice" placeholder="Price"><button onclick="addS()" class="btn bg-zinc-800">Add</button><div id="sList" class="mt-4 space-y-2"></div><button onclick="saveS()" class="btn">Update Site</button></div>
         </div>
-        <div id="p-chat" class="hidden glass grid grid-cols-3 gap-6 h-[600px]"><div id="tList" class="border-r border-zinc-800 overflow-y-auto"></div><div class="col-span-2 flex flex-col"><div id="cBox" class="flex-1 overflow-y-auto p-4 flex flex-col gap-2"></div><div class="flex gap-2 p-2"><input type="text" id="rInput" placeholder="Reply..."><button onclick="rSend()" class="btn mt-0 w-32">Reply</button></div></div></div>
+
+        <div id="p-chat" class="hidden glass grid grid-cols-3 gap-6 h-[600px]">
+            <div id="tList" class="border-r border-zinc-800 overflow-y-auto"></div>
+            <div class="col-span-2 flex flex-col">
+                <div id="cBox" class="flex-1 overflow-y-auto p-4 flex flex-col gap-2"></div>
+                <div class="flex gap-2 p-2 border-t border-zinc-800">
+                    <input type="text" id="rInput" placeholder="Reply or Image URL...">
+                    <button onclick="rSend()" class="btn mt-0 w-32 text-[10px]">Reply</button>
+                </div>
+            </div>
+        </div>
+
         <div id="p-staff" class="hidden glass max-w-md mx-auto"><input type="email" id="staffEmail" placeholder="email@gmail.com"><button onclick="addStaff()" class="btn">Add Staff</button><div id="staffList" class="mt-6"></div></div>
     </div>
 
@@ -65,25 +77,18 @@
             if (user) {
                 const staffSnap = await get(ref(db, 'staffList'));
                 const authorized = staffSnap.val() ? Object.values(staffSnap.val()).includes(user.email) : false;
-                
-                // IF OWNER OR AUTHORIZED STAFF
                 if (user.email === OWNER_EMAIL || authorized) {
                     document.getElementById('admin-content').classList.remove('hidden');
                     document.getElementById('login-screen').classList.add('hidden');
                     initAdmin();
-                } else {
-                    alert("Access Denied: " + user.email + " is not an admin.");
-                    auth.signOut();
-                }
+                } else { alert("Unauthorized."); auth.signOut(); }
             } else {
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('admin-content').classList.add('hidden');
             }
         });
 
-        window.adminLogin = () => {
-            setPersistence(auth, browserLocalPersistence).then(() => signInWithPopup(auth, provider));
-        };
+        window.adminLogin = () => setPersistence(auth, browserLocalPersistence).then(() => signInWithPopup(auth, provider));
 
         window.showTab = (p) => {
             ['store', 'chat', 'staff'].forEach(id => {
@@ -96,7 +101,7 @@
             window.saveG = () => update(ref(db, 'mimiConfig'), { discord: aDisc.value, paypal: aPay.value });
             window.addS = () => {
                 const d = document.createElement('div');
-                d.className = "flex justify-between bg-black p-2 rounded";
+                d.className = "flex justify-between bg-black p-2 rounded mb-1";
                 d.innerHTML = `<span>${sName.value} - €${sPrice.value}</span><button onclick="this.parentElement.remove()">X</button>`;
                 d.dataset.v = `PixelArt|${sName.value}|${sPrice.value}`;
                 sList.appendChild(d);
@@ -105,38 +110,40 @@
                 const styles = Array.from(sList.children).map(el => el.dataset.v).join(';;');
                 update(ref(db, 'mimiConfig'), { styles });
             };
-            window.addStaff = () => {
-                const email = document.getElementById('staffEmail').value;
-                if(email) push(ref(db, 'staffList'), email);
-                document.getElementById('staffEmail').value = '';
+            window.deleteChat = (chatId) => {
+                if(confirm("Delete this chat permanently?")) remove(ref(db, 'chats/' + chatId));
             };
-            onValue(ref(db, 'staffList'), (snap) => {
-                const list = document.getElementById('staffList');
-                list.innerHTML = '';
-                snap.forEach(s => { list.innerHTML += `<div class="flex justify-between p-2 bg-zinc-900 rounded mb-1"><span>${s.val()}</span><button onclick="remove(ref(db, 'staffList/${s.key}'))" class="text-red-500">X</button></div>`; });
-            });
+
             onValue(ref(db, 'chats'), (s) => {
                 tList.innerHTML = '';
                 s.forEach(t => {
-                    const b = document.createElement('button');
-                    b.className = "w-full text-left p-3 bg-zinc-900 text-[10px] rounded mb-1 border border-zinc-800";
-                    b.innerText = "Ticket: " + t.key;
-                    b.onclick = () => {
-                        window.curId = t.key;
-                        onValue(ref(db, 'chats/'+t.key), (snap) => {
-                            cBox.innerHTML = '';
-                            snap.forEach(m => {
-                                const st = m.val().sender === 'melly' ? 'bg-pink-600 self-end' : 'bg-zinc-800 self-start';
-                                cBox.innerHTML += `<div class="p-2 px-3 rounded-xl text-[11px] max-w-[80%] ${st}">${m.val().text}</div>`;
-                            });
-                        });
-                    };
-                    tList.appendChild(b);
+                    const div = document.createElement('div');
+                    div.className = "flex gap-1 mb-1";
+                    div.innerHTML = `
+                        <button onclick="window.loadAdminChat('${t.key}')" class="flex-1 text-left p-2 bg-zinc-900 text-[9px] rounded border border-zinc-800 truncate">${t.key}</button>
+                        <button onclick="deleteChat('${t.key}')" class="bg-red-900 px-2 rounded text-[10px]">DEL</button>
+                    `;
+                    tList.appendChild(div);
                 });
             });
+
+            window.loadAdminChat = (chatId) => {
+                window.curId = chatId;
+                onValue(ref(db, 'chats/'+chatId), (snap) => {
+                    cBox.innerHTML = '';
+                    snap.forEach(m => {
+                        const d = m.val();
+                        const st = d.sender === 'melly' ? 'bg-pink-600 self-end' : 'bg-zinc-800 self-start';
+                        const content = d.type === 'image' ? `<img src="${d.text}" class="chat-img">` : d.text;
+                        cBox.innerHTML += `<div class="p-2 px-3 rounded-xl text-[11px] max-w-[80%] ${st}">${content}</div>`;
+                    });
+                });
+            };
+
             window.rSend = () => {
                 if(!window.curId || !rInput.value) return;
-                push(ref(db, 'chats/'+window.curId), { sender:'melly', text: rInput.value });
+                const isImg = /\.(jpg|jpeg|png|webp|avif|gif)$/.test(rInput.value.toLowerCase());
+                push(ref(db, 'chats/'+window.curId), { sender:'melly', text: rInput.value, type: isImg ? 'image' : 'text' });
                 rInput.value = '';
             };
             document.getElementById('rInput').addEventListener("keypress", (e) => { if(e.key === "Enter") rSend(); });
