@@ -2,19 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Mimi | Config</title>
+    <title>Mimi | Admin Config</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #0a0a0a; color: white; font-family: sans-serif; padding: 20px; }
+        body { background: #0a0a0a; color: white; font-family: sans-serif; }
         .glass { background: #111; border: 1px solid #27272a; border-radius: 20px; padding: 25px; }
         .tab { padding: 10px 20px; font-weight: 800; font-size: 11px; text-transform: uppercase; color: #52525b; cursor: pointer; }
         .tab.active { color: #ec4899; border-bottom: 2px solid #ec4899; }
-        input, select { background: #000 !important; border: 1px solid #333 !important; color: white; padding: 10px; border-radius: 10px; width: 100%; margin-top: 5px; }
-        .btn { background: #ec4899; color: white; font-weight: 900; padding: 12px; border-radius: 10px; width: 100%; margin-top: 15px; cursor: pointer; text-transform: uppercase; font-size: 11px; }
+        input { background: #000 !important; border: 1px solid #333 !important; color: white; padding: 10px; border-radius: 10px; width: 100%; margin-top: 5px; }
+        .btn { background: #ec4899; color: white; font-weight: 900; padding: 12px; border-radius: 10px; width: 100%; margin-top: 15px; cursor: pointer; text-transform: uppercase; font-size: 11px; text-align: center; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="max-w-5xl mx-auto">
+
+    <div id="login-screen" class="h-screen flex items-center justify-center">
+        <div class="glass text-center w-80">
+            <h1 class="text-xl font-black mb-6 uppercase tracking-widest">Admin Access</h1>
+            <button onclick="adminLogin()" class="btn">Login with Google</button>
+        </div>
+    </div>
+
+    <div id="admin-content" class="hidden p-8 max-w-5xl mx-auto">
         <div class="flex gap-10 mb-8 border-b border-zinc-800">
             <div onclick="show('store')" id="t-store" class="tab active">Manage Store</div>
             <div onclick="show('chat')" id="t-chat" class="tab">Customer Chats</div>
@@ -22,25 +31,19 @@
 
         <div id="p-store" class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="glass">
-                <h2 class="text-pink-500 font-bold text-xs uppercase mb-4">Branding & Links</h2>
+                <h2 class="text-pink-500 font-bold text-xs uppercase mb-4">Globals</h2>
                 <label>Name</label><input type="text" id="aName">
                 <label>Discord</label><input type="text" id="aDisc">
-                <label>PayPal.me Name (not email)</label><input type="text" id="aPay">
+                <label>PayPal Name</label><input type="text" id="aPay">
                 <button onclick="saveG()" class="btn">Save Globals</button>
             </div>
             <div class="glass">
-                <h2 class="text-pink-500 font-bold text-xs uppercase mb-4">Add Art Style</h2>
-                <input type="text" id="sName" placeholder="Style Name">
-                <input type="text" id="sPrice" placeholder="Price (€)">
-                <select id="sCat">
-                    <option value="PixelArt">Pixel Art</option>
-                    <option value="DigitalArt">Digital Art</option>
-                    <option value="Renders">Renders</option>
-                    <option value="Skins">Skins</option>
-                </select>
-                <button onclick="addS()" class="btn bg-zinc-800">Add to List</button>
-                <div id="sList" class="mt-4 space-y-2"></div>
-                <button onclick="saveS()" class="btn">Publish to Site</button>
+                <h2 class="text-pink-500 font-bold text-xs uppercase mb-4">Content</h2>
+                <input type="text" id="sName" placeholder="Name">
+                <input type="text" id="sPrice" placeholder="Price">
+                <button onclick="addS()" class="btn bg-zinc-800">Add Style</button>
+                <div id="sList" class="mt-4 space-y-2 text-xs"></div>
+                <button onclick="saveS()" class="btn">Publish Changes</button>
             </div>
         </div>
 
@@ -49,7 +52,7 @@
             <div class="col-span-2 flex flex-col">
                 <div id="cBox" class="flex-1 overflow-y-auto p-4 space-y-2 flex flex-col"></div>
                 <div class="flex gap-2 p-2">
-                    <input type="text" id="rInput" placeholder="Reply..." class="flex-1">
+                    <input type="text" id="rInput" placeholder="Type response and hit Enter...">
                     <button onclick="rSend()" class="btn mt-0 w-32">Reply</button>
                 </div>
             </div>
@@ -59,6 +62,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, update, onValue, push, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAIw732tQkUIeaYXAUAg_80kSH63BytVtE",
@@ -69,10 +73,28 @@
             messagingSenderId: "761353241386",
             appId: "1:761353241386:web:b5596befd6eb3dae699453"
         };
+
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        let curId = null;
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
 
+        const ADMIN_EMAIL = "YOU@GMAIL.COM"; // CHANGE THIS TO YOUR ACTUAL GOOGLE EMAIL
+
+        onAuthStateChanged(auth, (user) => {
+            if (user && user.email === ADMIN_EMAIL) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('admin-content').classList.remove('hidden');
+                initAdmin();
+            } else if (user) {
+                alert("Access Denied.");
+                auth.signOut();
+            }
+        });
+
+        window.adminLogin = () => signInWithPopup(auth, provider);
+
+        let curId = null;
         window.show = (p) => {
             document.getElementById('p-store').style.display = p === 'store' ? 'grid' : 'none';
             document.getElementById('p-chat').style.display = p === 'chat' ? 'grid' : 'none';
@@ -80,59 +102,66 @@
             document.getElementById('t-chat').className = p === 'chat' ? 'tab active' : 'tab';
         };
 
-        window.saveG = () => update(ref(db, 'mimiConfig'), { artistName: aName.value, discord: aDisc.value, paypal: aPay.value });
-        
-        window.addS = () => {
-            const d = document.createElement('div');
-            d.className = "flex justify-between bg-black p-2 rounded text-[10px]";
-            d.innerHTML = `<span>${sCat.value} | ${sName.value}</span><button onclick="this.parentElement.remove()">X</button>`;
-            d.dataset.v = `${sCat.value}|${sName.value}|${sPrice.value}`;
-            sList.appendChild(d);
-        };
+        function initAdmin() {
+            window.rSend = () => {
+                if(!curId || !rInput.value) return;
+                push(ref(db, 'chats/'+curId), { sender:'melly', text: rInput.value });
+                rInput.value = '';
+            };
 
-        window.saveS = () => {
-            const styles = Array.from(sList.children).map(el => el.dataset.v).join(';;');
-            update(ref(db, 'mimiConfig'), { styles });
-        };
+            document.getElementById('rInput').addEventListener("keypress", (e) => {
+                if (e.key === "Enter") { rSend(); }
+            });
 
-        onValue(ref(db, 'chats'), (s) => {
-            tList.innerHTML = '';
-            s.forEach(t => {
-                const b = document.createElement('button');
-                b.className = "w-full text-left p-2 bg-zinc-900 text-[10px] rounded";
-                b.innerText = t.key;
-                b.onclick = () => {
-                    curId = t.key;
-                    onValue(ref(db, 'chats/'+curId), (snap) => {
-                        cBox.innerHTML = '';
-                        snap.forEach(m => {
-                            const d = m.val();
-                            const st = d.sender === 'melly' ? 'bg-pink-600 self-end' : 'bg-zinc-800 self-start';
-                            cBox.innerHTML += `<div class="p-2 rounded text-[10px] max-w-[80%] ${st}">${d.text}</div>`;
+            window.saveG = () => update(ref(db, 'mimiConfig'), { artistName: aName.value, discord: aDisc.value, paypal: aPay.value }).then(()=>alert("Saved!"));
+            
+            window.addS = () => {
+                const d = document.createElement('div');
+                d.className = "flex justify-between bg-black p-2 rounded";
+                d.innerHTML = `<span>${sName.value} - €${sPrice.value}</span><button onclick="this.parentElement.remove()">X</button>`;
+                d.dataset.v = `PixelArt|${sName.value}|${sPrice.value}`;
+                sList.appendChild(d);
+            };
+
+            window.saveS = () => {
+                const styles = Array.from(sList.children).map(el => el.dataset.v).join(';;');
+                update(ref(db, 'mimiConfig'), { styles }).then(()=>alert("Published!"));
+            };
+
+            onValue(ref(db, 'chats'), (s) => {
+                tList.innerHTML = '';
+                s.forEach(t => {
+                    const b = document.createElement('button');
+                    b.className = "w-full text-left p-2 bg-zinc-900 text-[10px] rounded mb-1";
+                    b.innerText = "Ticket: " + t.key;
+                    b.onclick = () => {
+                        curId = t.key;
+                        onValue(ref(db, 'chats/'+curId), (snap) => {
+                            cBox.innerHTML = '';
+                            snap.forEach(m => {
+                                const d = m.val();
+                                const st = d.sender === 'melly' ? 'bg-pink-600 self-end' : 'bg-zinc-800 self-start';
+                                cBox.innerHTML += `<div class="p-2 rounded text-[10px] max-w-[80%] ${st}">${d.text}</div>`;
+                            });
+                            cBox.scrollTop = cBox.scrollHeight;
                         });
-                    });
-                };
-                tList.appendChild(b);
+                    };
+                    tList.appendChild(b);
+                });
             });
-        });
 
-        window.rSend = () => {
-            if(!curId || !rInput.value) return;
-            push(ref(db, 'chats/'+curId), { sender:'melly', text: rInput.value });
-            rInput.value = '';
-        };
-
-        get(ref(db, 'mimiConfig')).then(s => {
-            const d = s.val(); if(!d) return;
-            aName.value = d.artistName; aDisc.value = d.discord; aPay.value = d.paypal;
-            if(d.styles) d.styles.split(';;').forEach(x => {
-                const [c,n,p] = x.split('|');
-                const div = document.createElement('div');
-                div.className = "flex justify-between bg-black p-2 rounded text-[10px]";
-                div.innerHTML = `<span>${c} | ${n}</span><button onclick="this.parentElement.remove()">X</button>`;
-                div.dataset.v = x; sList.appendChild(div);
+            get(ref(db, 'mimiConfig')).then(s => {
+                const d = s.val(); if(!d) return;
+                aName.value = d.artistName || ''; aDisc.value = d.discord || ''; aPay.value = d.paypal || '';
+                if(d.styles) d.styles.split(';;').forEach(x => {
+                    const [c,n,p] = x.split('|');
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between bg-black p-2 rounded";
+                    div.innerHTML = `<span>${n} - €${p}</span><button onclick="this.parentElement.remove()">X</button>`;
+                    div.dataset.v = x; sList.appendChild(div);
+                });
             });
-        });
+        }
     </script>
 </body>
 </html>
